@@ -1,0 +1,698 @@
+/* Lettore HTML. Colours and reading settings are CSS variables: a theme or a
+   font change only touches :root or the attributes set by app.js. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+:root {
+  --bg: #161616;
+  --fg: #d6d6d6;
+  --muted: #8a8a8a;
+  --panel: #222222;
+  --btn: rgba(255, 255, 255, 0.08);
+  --line: rgba(255, 255, 255, 0.12);
+  --accent: #f0c060;
+  --bar: rgba(22, 22, 22, 0.9);
+  --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+
+  /* reading settings, written by app.js */
+  --fs: 19px;
+  --lh: 1.6;
+  --ff: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --mx: 22px;
+  --my: 20px;
+  --align: left;
+
+  color-scheme: dark;
+}
+
+html[data-theme="light"] {
+  --bg: #fbf8f2;
+  --fg: #222222;
+  --muted: #6b6b6b;
+  --panel: #efe9dc;
+  --btn: rgba(0, 0, 0, 0.06);
+  --line: rgba(0, 0, 0, 0.12);
+  --accent: #8a5a00;
+  --bar: rgba(251, 248, 242, 0.92);
+  color-scheme: light;
+}
+
+html[data-theme="sepia"] {
+  --bg: #f4ecd8;
+  --fg: #3b2f1e;
+  --muted: #7a6a50;
+  --panel: #e9dfc6;
+  --btn: rgba(59, 47, 30, 0.08);
+  --line: rgba(59, 47, 30, 0.16);
+  --accent: #8a5a00;
+  --bar: rgba(244, 236, 216, 0.94);
+  color-scheme: light;
+}
+
+html[data-theme="black"] {
+  --bg: #000000;
+  --fg: #bdbdbd;
+  --muted: #6e6e6e;
+  --panel: #151515;
+  --btn: rgba(255, 255, 255, 0.07);
+  --line: rgba(255, 255, 255, 0.1);
+  --accent: #f0c060;
+  --bar: rgba(0, 0, 0, 0.9);
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--ui);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* ---------- Library ---------- */
+
+.view {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+}
+
+#library {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: calc(env(safe-area-inset-top, 0px) + 18px) 16px calc(env(safe-area-inset-bottom, 0px) + 24px);
+}
+
+.lib-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.lib-head h1 {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.pill {
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--bg);
+  font: 600 15px/1 var(--ui);
+}
+
+.book-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.book {
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--panel);
+}
+
+.book-open {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 14px 12px;
+  border: 0;
+  background: none;
+  text-align: left;
+}
+
+.book-title {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.book-meta {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.track {
+  height: 3px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--line);
+}
+
+.track i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.book-del {
+  padding: 0 16px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 22px;
+}
+
+.empty {
+  margin: 48px 12px;
+  text-align: center;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* ---------- Reader ---------- */
+
+#rd-view {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--bg);
+  touch-action: pan-y; /* vertical scrolling stays native, horizontal swipes are ours */
+}
+
+#rd-stage {
+  position: absolute;
+  left: var(--mx);
+  right: var(--mx);
+  top: calc(env(safe-area-inset-top, 0px) + var(--my));
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--my));
+  overflow: hidden;
+}
+
+.mode-scroll #rd-stage {
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.mode-scroll #rd-stage::-webkit-scrollbar {
+  display: none;
+}
+
+#rd-content {
+  font-family: var(--ff);
+  font-size: var(--fs);
+  line-height: var(--lh);
+  color: var(--fg);
+  text-align: var(--align);
+  hyphens: auto;
+  -webkit-hyphens: auto;
+  overflow-wrap: break-word;
+  text-wrap: pretty;
+  orphans: 2;
+  widows: 2;
+}
+
+#rd-content p {
+  margin: 0 0 0.8em;
+  text-indent: 0;
+}
+
+#rd-content p.c {
+  text-align: center;
+}
+
+#rd-content h1,
+#rd-content h2,
+#rd-content h3 {
+  margin: 1.5em 0 0.8em;
+  font-family: var(--ff);
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: left;
+  hyphens: manual;
+  -webkit-hyphens: manual;
+  break-after: avoid;
+}
+
+#rd-content h1 {
+  font-size: 1.5em;
+}
+
+#rd-content h2 {
+  font-size: 1.3em;
+}
+
+#rd-content h3 {
+  font-size: 1.12em;
+}
+
+#rd-content .titlepage {
+  padding-top: 14vh;
+  text-align: center;
+}
+
+#rd-content .titlepage h1 {
+  margin-top: 0;
+  font-size: 1.9em;
+}
+
+#rd-content .titlepage p {
+  color: var(--muted);
+}
+
+#rd-content .illus {
+  margin: 1em 0;
+  text-align: center;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+#rd-content img {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+  max-height: calc(var(--stage-h, 600px) - 3em); /* one picture always fits in one column */
+  border-radius: 4px;
+}
+
+#rd-content a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+#rd-content blockquote {
+  margin: 1em 1em;
+  font-style: italic;
+}
+
+#rd-content table {
+  max-width: 100%;
+  border-collapse: collapse;
+}
+
+#rd-content pre {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  font-size: 0.9em;
+}
+
+#rd-content ruby rt {
+  font-size: 0.55em;
+}
+
+#rd-content hr {
+  width: 40%;
+  margin: 1.4em auto;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+#rd-dim {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#hairline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
+  height: 2px;
+  pointer-events: none;
+  transition: opacity 0.25s;
+}
+
+#hairline i {
+  display: block;
+  width: 0;
+  height: 100%;
+  opacity: 0.6;
+  background: var(--accent);
+  transition: width 0.3s;
+}
+
+/* The bars are hidden until a tap in the middle of the page, and never shown in immersive mode. */
+.bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  visibility: hidden;
+  opacity: 0;
+  color: var(--fg);
+  background: var(--bar);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
+  transition: transform 0.25s ease, opacity 0.25s ease, visibility 0.25s;
+}
+
+#bar-top {
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: calc(env(safe-area-inset-top, 0px) + 6px) 12px 8px;
+  transform: translateY(-100%);
+  box-shadow: 0 1px 0 var(--line);
+}
+
+#bar-bottom {
+  bottom: 0;
+  padding: 8px 16px calc(env(safe-area-inset-bottom, 0px) + 12px);
+  transform: translateY(100%);
+  box-shadow: 0 -1px 0 var(--line);
+}
+
+#reader.bars-on .bar {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+}
+
+#reader.bars-on #hairline {
+  opacity: 0;
+}
+
+#reader.immersive .bar {
+  display: none;
+}
+
+.icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--btn);
+  font: 600 17px/1 var(--ui);
+}
+
+.bar-title {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
+#bar-book {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#bar-section {
+  overflow: hidden;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#seek {
+  display: block;
+  width: 100%;
+  margin: 2px 0 8px;
+  accent-color: var(--accent);
+}
+
+.bar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.bar-row .pill {
+  padding: 8px 14px;
+  font-size: 14px;
+}
+
+/* ---------- Sheet: contents and settings ---------- */
+
+#sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+/* Closed, the sheet is hidden as a whole: its shadow would otherwise show at the bottom edge. */
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 31;
+  display: flex;
+  flex-direction: column;
+  max-height: 82%;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  visibility: hidden;
+  transform: translateY(105%);
+  transition: transform 0.3s ease, visibility 0.3s;
+  border-radius: 18px 18px 0 0;
+  background: var(--panel);
+  color: var(--fg);
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.25);
+}
+
+.sheet.open {
+  visibility: visible;
+  transform: none;
+}
+
+.grip {
+  flex: none;
+  width: 40px;
+  height: 5px;
+  margin: 8px auto 4px;
+  border-radius: 3px;
+  background: var(--muted);
+  opacity: 0.5;
+}
+
+.tabs {
+  display: flex;
+  flex: none;
+  gap: 6px;
+  padding: 4px 16px 8px;
+}
+
+.tab {
+  flex: 1;
+  padding: 9px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font: 600 15px/1 var(--ui);
+}
+
+.tab.on {
+  background: var(--btn);
+  color: var(--fg);
+}
+
+.pane {
+  min-height: 0;
+  padding: 0 16px 24px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+#toc-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#toc-list button {
+  display: block;
+  width: 100%;
+  padding: 11px 6px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  font-size: 16px;
+  line-height: 1.35;
+  text-align: left;
+}
+
+#toc-list button.current {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 16px;
+}
+
+.row.col {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.row small {
+  display: block;
+  margin-top: 3px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.row input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.row input[type="checkbox"] {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  accent-color: var(--accent);
+}
+
+.row select {
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+
+.row output {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+.seg button {
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 14px;
+}
+
+.seg button[aria-pressed="true"] {
+  background: var(--btn);
+  font-weight: 600;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stepper button {
+  width: 44px;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--bg);
+  font: 600 16px/1 var(--ui);
+}
+
+.stepper output {
+  min-width: 36px;
+  font-size: 16px;
+  text-align: center;
+}
+
+.wide {
+  width: 100%;
+  margin-top: 18px;
+  padding: 13px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--bg);
+  font: 600 16px/1 var(--ui);
+}
+
+/* ---------- Feedback ---------- */
+
+#busy {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font: 600 16px/1 var(--ui);
+}
+
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 28px);
+  z-index: 70;
+  max-width: calc(100% - 40px);
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.82);
+  color: #fff;
+  font-size: 15px;
+  line-height: 1.35;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 12px);
+  transition: opacity 0.25s, transform 0.25s;
+}
+
+#toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
